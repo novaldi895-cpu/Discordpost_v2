@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Autopost Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
+        .sidebar-active { background-color: #e5e7eb; border-right: 4px solid #4f46e5; }
+        .discord-blue { background-color: #5865F2; }
+        .discord-blue:hover { background-color: #4752C4; }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+        <div class="p-6 border-b border-gray-200 flex items-center space-x-3">
+            <i class="fa-brands fa-discord text-3xl text-indigo-500"></i>
+            <h1 class="text-xl font-bold text-gray-800">Dispost Clone</h1>
+        </div>
+        <nav class="flex-1 p-4 space-y-2">
+            <button onclick="switchTab('tokens')" id="nav-tokens" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                <i class="fa-solid fa-key"></i> <span>Tokens</span>
+            </button>
+            <button onclick="switchTab('configs')" id="nav-configs" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                <i class="fa-solid fa-gears"></i> <span>Configurations</span>
+            </button>
+            <button onclick="switchTab('logs')" id="nav-logs" class="w-full flex items-center space-x-3 p-3 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                <i class="fa-solid fa-list-ul"></i> <span>Logs</span>
+            </button>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col overflow-hidden">
+        <header class="bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+            <h2 id="page-title" class="text-lg font-semibold text-gray-800">Dashboard</h2>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm text-gray-500">Status: <span class="text-green-500 font-bold">Online</span></span>
+                <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold">A</div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-6">
+            
+            <!-- TOKENS TAB -->
+            <div id="tab-tokens" class="tab-content hidden">
+                <div class="bg-white rounded-lg shadow p-6 mb-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Add Discord Token</h3>
+                    <div class="flex space-x-4">
+                        <input type="password" id="input-token" placeholder="Enter Discord Token..." class="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button onclick="addToken()" class="discord-blue text-white px-6 py-2 rounded-md font-medium transition">Add Token</button>
+                    </div>
+                    <p class="text-xs text-red-500 mt-2"><i class="fa-solid fa-triangle-exclamation"></i> Never share your token with anyone.</p>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Your Tokens (<span id="token-count">0</span>)</h3>
+                    <div id="token-list" class="space-y-3">
+                        <!-- Tokens will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONFIGS TAB -->
+            <div id="tab-configs" class="tab-content hidden">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-lg shadow border-l-4 border-indigo-500">
+                        <p class="text-sm text-gray-500 font-semibold">CONFIG SLOTS</p>
+                        <p class="text-2xl font-bold text-gray-800" id="config-slot-count">0 / 20</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
+                        <p class="text-sm text-gray-500 font-semibold">RUNNING</p>
+                        <p class="text-2xl font-bold text-gray-800" id="running-count">0</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
+                        <p class="text-sm text-gray-500 font-semibold">TOTAL MESSAGES SENT</p>
+                        <p class="text-2xl font-bold text-gray-800" id="total-sent">0</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">Configurations</h3>
+                    <button onclick="openConfigModal()" class="discord-blue text-white px-4 py-2 rounded-md font-medium transition"><i class="fa-solid fa-plus"></i> New Config</button>
+                </div>
+
+                <div id="config-list" class="space-y-4">
+                    <!-- Configs will be injected here -->
+                </div>
+            </div>
+
+            <!-- LOGS TAB -->
+            <div id="tab-logs" class="tab-content hidden">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <p class="text-sm text-gray-500 font-semibold">TOTAL LOGS</p>
+                        <p class="text-2xl font-bold text-gray-800" id="log-total">0</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <p class="text-sm text-gray-500 font-semibold">SUCCESS</p>
+                        <p class="text-2xl font-bold text-green-500" id="log-success">0</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <p class="text-sm text-gray-500 font-semibold">FAILED</p>
+                        <p class="text-2xl font-bold text-red-500" id="log-failed">0</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                        <span class="font-semibold text-gray-700">Activity Logs</span>
+                        <button onclick="clearLogs()" class="text-sm text-red-500 hover:text-red-700">Clear Logs</button>
+                    </div>
+                    <div id="log-list" class="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+                        <!-- Logs will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal New Config -->
+    <div id="config-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-800">New Configuration</h3>
+                <button onclick="closeConfigModal()" class="text-gray-500 hover:text-gray-700"><i class="fa-solid fa-times"></i></button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Config Name</label>
+                    <input type="text" id="cfg-name" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., Promo Server 1">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Discord Token</label>
+                    <select id="cfg-token" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Channel ID</label>
+                    <input type="text" id="cfg-channel" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., 1104057271215984741">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Main Delay (Seconds)</label>
+                    <input type="number" id="cfg-delay" value="60" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <p class="text-xs text-gray-500 mt-1">Interval between each post (10s - 30 hours)</p>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Random Delay</label>
+                        <p class="text-xs text-gray-500">Add random variation to avoid detection</p>
+                    </div>
+                    <input type="checkbox" id="cfg-random" class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500">
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end space-x-3">
+                <button onclick="closeConfigModal()" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button onclick="createConfig()" class="discord-blue text-white px-4 py-2 rounded-md font-medium">Create Config</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- STATE MANAGEMENT ---
+        let tokens = JSON.parse(localStorage.getItem('discord_tokens')) || [];
+        let configs = JSON.parse(localStorage.getItem('discord_configs')) || [];
+        let logs = JSON.parse(localStorage.getItem('discord_logs')) || [];
+        let intervals = {}; // Menyimpan interval ID
+
+        // --- INITIALIZATION ---
+        function init() {
+            renderTokens();
+            renderConfigs();
+            renderLogs();
+            switchTab('configs'); // Default tab
+        }
+
+        // --- NAVIGATION ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            
+            document.querySelectorAll('nav button').forEach(el => el.classList.remove('sidebar-active'));
+            document.getElementById(`nav-${tabId}`).classList.add('sidebar-active');
+            
+            const titles = { tokens: 'Token Management', configs: 'Discord Configuration', logs: 'Activity Logs' };
+            document.getElementById('page-title').innerText = titles[tabId];
+        }
+
+        // --- TOKEN MANAGEMENT ---
+        function addToken() {
+            const tokenInput = document.getElementById('input-token');
+            const tokenValue = tokenInput.value.trim();
+            
+            if (!tokenValue) return alert('Token tidak boleh kosong!');
+            
+            // Simulasi pengecekan token (Di backend asli, ini akan memanggil API Discord)
+            const fakeId = Math.floor(Math.random() * 1000000000000000);
+            const newToken = {
+                id: Date.now(),
+                token: tokenValue,
+                username: `User_${fakeId.toString().slice(-4)}`,
+                avatar: `https://cdn.discordapp.com/embed/avatars/${Math.floor(Math.random() * 5)}.png`
+            };
+            
+            tokens.push(newToken);
+            localStorage.setItem('discord_tokens', JSON.stringify(tokens));
+            tokenInput.value = '';
+            renderTokens();
+            addLog('System', 'SUCCESS', `Token ${newToken.username} berhasil ditambahkan.`);
+        }
+
+        function deleteToken(id) {
+            if (!confirm('Hapus token ini?')) return;
+            tokens = tokens.filter(t => t.id !== id);
+            localStorage.setItem('discord_tokens', JSON.stringify(tokens));
+            renderTokens();
+        }
+
+        function renderTokens() {
+            const list = document.getElementById('token-list');
+            document.getElementById('token-count').innerText = tokens.length;
+            list.innerHTML = '';
+
+            if (tokens.length === 0) {
+                list.innerHTML = '<p class="text-gray-500 text-center py-4">Belum ada token yang ditambahkan.</p>';
+                return;
+            }
+
+            tokens.forEach(t => {
+                list.innerHTML += `
+                    <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50">
+                        <div class="flex items-center space-x-3">
+                            <img src="${t.avatar}" class="w-10 h-10 rounded-full">
+                            <div>
+                                <p class="font-bold text-gray-800">${t.username}</p>
+                                <p class="text-xs text-gray-500">${t.token.substring(0, 10)}...${t.token.slice(-5)}</p>
+                            </div>
+                        </div>
+                        <button onclick="deleteToken(${t.id})" class="text-red-500 hover:text-red-700 p-2"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                `;
+            });
+        }
+
+        // --- CONFIG MANAGEMENT ---
+        function openConfigModal() {
+            if (tokens.length === 0) return alert('Tambahkan Token terlebih dahulu di tab Tokens!');
+            
+            const select = document.getElementById('cfg-token');
+            select.innerHTML = tokens.map(t => `<option value="${t.id}">${t.username}</option>`).join('');
+            
+            document.getElementById('config-modal').classList.remove('hidden');
+        }
+
+        function closeConfigModal() {
+            document.getElementById('config-modal').classList.add('hidden');
+            document.getElementById('cfg-name').value = '';
+            document.getElementById('cfg-channel').value = '';
+        }
+
+        function createConfig() {
+            const name = document.getElementById('cfg-name').value;
+            const tokenId = document.getElementById('cfg-token').value;
+            const channel = document.getElementById('cfg-channel').value;
+            const delay = parseInt(document.getElementById('cfg-delay').value);
+            const isRandom = document.getElementById('cfg-random').checked;
+
+            if (!name || !channel) return alert('Nama dan Channel ID harus diisi!');
+
+            const newConfig = {
+                id: Date.now(),
+                name: name,
+                tokenId: parseInt(tokenId),
+                channel: channel,
+                delay: delay,
+                random: isRandom,
+                status: 'STOPPED',
+                sentCount: 0,
+                lastSent: null
+            };
+
+            configs.push(newConfig);
+            saveConfigs();
+            closeConfigModal();
+            renderConfigs();
+            addLog(name, 'SUCCESS', 'Konfigurasi berhasil dibuat.');
+        }
+
+        function toggleConfig(id) {
+            const config = configs.find(c => c.id === id);
+            if (!config) return;
+
+            if (config.status === 'RUNNING') {
+                // Stop
+                clearInterval(intervals[id]);
+                delete intervals[id];
+                config.status = 'STOPPED';
+                addLog(config.name, 'INFO', 'Autopost dihentikan.');
+            } else {
+                // Start
+                config.status = 'RUNNING';
+                addLog(config.name, 'SUCCESS', 'Autopost dimulai.');
+                startAutopost(config);
+            }
+            saveConfigs();
+            renderConfigs();
+        }
+
+        function deleteConfig(id) {
+            if (!confirm('Hapus konfigurasi ini?')) return;
+            clearInterval(intervals[id]);
+            delete intervals[id];
+            configs = configs.filter(c => c.id !== id);
+            saveConfigs();
+            renderConfigs();
+        }
+
+        function saveConfigs() {
+            localStorage.setItem('discord_configs', JSON.stringify(configs));
+        }
+
+        function renderConfigs() {
+            const list = document.getElementById('config-list');
+            document.getElementById('config-slot-count').innerText = `${configs.length} / 20`;
+            document.getElementById('running-count').innerText = configs.filter(c => c.status === 'RUNNING').length;
+            
+            let totalSent = configs.reduce((sum, c) => sum + c.sentCount, 0);
+            document.getElementById('total-sent').innerText = totalSent;
+
+            list.innerHTML = '';
+
+            if (configs.length === 0) {
+                list.innerHTML = '<p class="text-gray-500 text-center py-4">Belum ada konfigurasi.</p>';
+                return;
+            }
+
+            configs.forEach(c => {
+                const token = tokens.find(t => t.id === c.tokenId);
+                const tokenName = token ? token.username : 'Token Dihapus';
+                const statusColor = c.status === 'RUNNING' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+                
+                list.innerHTML += `
+                    <div class="bg-white p-4 rounded-lg shadow border border-gray-200 flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500">
+                                <i class="fa-brands fa-discord text-xl"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-gray-800 flex items-center space-x-2">
+                                    ${c.name} 
+                                    <span class="text-xs px-2 py-0.5 rounded-full ${statusColor}">${c.status}</span>
+                                </h4>
+                                <p class="text-sm text-gray-500">Token: ${tokenName} • Channel: ${c.channel}</p>
+                                <p class="text-xs text-gray-400">Terkirim: ${c.sentCount} pesan</p>
+                            </div>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="toggleConfig(${c.id})" class="p-2 rounded-full ${c.status === 'RUNNING' ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200' : 'bg-green-100 text-green-600 hover:bg-green-200'}">
+                                <i class="fa-solid ${c.status === 'RUNNING' ? 'fa-pause' : 'fa-play'}"></i>
+                            </button>
+                            <button onclick="deleteConfig(${c.id})" class="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // --- AUTOPOST LOGIC (SIMULASI FRONTEND) ---
+        function startAutopost(config) {
+            if (intervals[config.id]) clearInterval(intervals[config.id]);
+            
+            const runPost = () => {
+                // Di backend asli, ini akan mengirim HTTP Request ke Discord API
+                const success = Math.random() > 0.1; // 90% success rate simulation
+                
+                if (success) {
+                    config.sentCount++;
+            
