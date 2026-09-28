@@ -86,7 +86,6 @@
         </div>
     </main>
 
-    <!-- Modal New Config -->
     <div id="config-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-4">
             <div class="flex justify-between items-center mb-3">
@@ -127,34 +126,38 @@
         let configs = [];
         let logs = [];
 
+        // --- FETCH API DENGAN ERROR HANDLING YANG LEBIH BAIK ---
         async function fetchAPI(endpoint, method = 'GET', body = null) {
             try {
                 const options = { method, headers: { 'Content-Type': 'application/json' } };
                 if (body) options.body = JSON.stringify(body);
                 const res = await fetch(endpoint, options);
-                if (!res.ok) throw new Error('Network response was not ok');
-                return await res.json();
+                const data = await res.json();
+                
+                if (!res.ok) {
+                    // Lempar error dengan pesan asli dari server
+                    throw new Error(data.error || data.message || `HTTP ${res.status}`);
+                }
+                return data;
             } catch (error) {
-                console.error("API Error:", error);
-                return null;
+                console.error(`API Error [${endpoint}]:`, error);
+                throw error; // Lempar ke fungsi pemanggil untuk ditampilkan
             }
         }
 
         async function init() {
-            await loadData();
-            switchTab('configs');
+            try {
+                await loadData();
+                switchTab('configs');
+            } catch (error) {
+                alert(`Gagal memuat data: ${error.message}\n\nPastikan backend berjalan dan database terhubung.`);
+            }
         }
 
         async function loadData() {
-            const tokenData = await fetchAPI('/api/tokens');
-            if (tokenData) tokens = tokenData;
-
-            const configData = await fetchAPI('/api/configs');
-            if (configData) configs = configData;
-
-            const logData = await fetchAPI('/api/logs');
-            if (logData) logs = logData;
-
+            tokens = await fetchAPI('/api/tokens');
+            configs = await fetchAPI('/api/configs');
+            logs = await fetchAPI('/api/logs');
             renderTokens();
             renderConfigs();
             renderLogs();
@@ -178,16 +181,24 @@
             const val = input.value.trim();
             if (!val) return alert('Token kosong!');
             
-            await fetchAPI('/api/tokens', 'POST', { token: val });
-            input.value = '';
-            await loadData();
-            alert('Token berhasil disimpan!');
+            try {
+                await fetchAPI('/api/tokens', 'POST', { token: val });
+                input.value = '';
+                await loadData();
+                alert('Token berhasil disimpan!');
+            } catch (error) {
+                alert(`Gagal menyimpan token: ${error.message}`);
+            }
         }
 
         async function deleteToken(id) {
             if (!confirm('Hapus token ini?')) return;
-            await fetchAPI(`/api/tokens/${id}`, 'DELETE');
-            await loadData();
+            try {
+                await fetchAPI(`/api/tokens/${id}`, 'DELETE');
+                await loadData();
+            } catch (error) {
+                alert(`Gagal menghapus token: ${error.message}`);
+            }
         }
 
         function renderTokens() {
@@ -217,33 +228,45 @@
         function closeConfigModal() {
             document.getElementById('config-modal').classList.add('hidden');
             document.getElementById('cfg-name').value = '';
-            document.getElementById('cfg-message').value = ''; // Reset pesan
+            document.getElementById('cfg-message').value = '';
             document.getElementById('cfg-channel').value = '';
         }
 
         async function createConfig() {
             const name = document.getElementById('cfg-name').value;
-            const message = document.getElementById('cfg-message').value; // Ambil pesan
+            const message = document.getElementById('cfg-message').value;
             const tokenId = document.getElementById('cfg-token').value;
             const channel = document.getElementById('cfg-channel').value;
             const delay = parseInt(document.getElementById('cfg-delay').value) || 60;
 
             if (!name || !channel) return alert('Isi nama dan Channel ID!');
 
-            await fetchAPI('/api/configs', 'POST', { name, message, tokenId, channel, delay });
-            closeConfigModal();
-            await loadData();
+            try {
+                await fetchAPI('/api/configs', 'POST', { name, message, tokenId, channel, delay });
+                closeConfigModal();
+                await loadData();
+            } catch (error) {
+                alert(`Gagal membuat konfigurasi: ${error.message}`);
+            }
         }
 
         async function toggleConfig(id) {
-            await fetchAPI(`/api/configs/${id}/toggle`, 'POST');
-            await loadData();
+            try {
+                await fetchAPI(`/api/configs/${id}/toggle`, 'POST');
+                await loadData();
+            } catch (error) {
+                alert(`Gagal mengubah status: ${error.message}`);
+            }
         }
 
         async function deleteConfig(id) {
             if (!confirm('Hapus config ini?')) return;
-            await fetchAPI(`/api/configs/${id}`, 'DELETE');
-            await loadData();
+            try {
+                await fetchAPI(`/api/configs/${id}`, 'DELETE');
+                await loadData();
+            } catch (error) {
+                alert(`Gagal menghapus konfigurasi: ${error.message}`);
+            }
         }
 
         function renderConfigs() {
@@ -296,4 +319,4 @@
         document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
-                    </html>
+                            </html>
