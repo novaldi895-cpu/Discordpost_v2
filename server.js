@@ -1,61 +1,101 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const path = require('path'); // Tambahan untuk mengatur path file
+const path = require('path');
+const mongoose = require('mongoose'); // Tambahkan mongoose
 
 const app = express();
-
-// Middleware
 app.use(cors());
 app.use(express.json());
-
-// INI KUNCI UTAMANYA: Mengizinkan Express menampilkan file index.html
 app.use(express.static(__dirname));
 
-// Route utama untuk menampilkan index.html
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+// --- KONEKSI KE MONGODB ---
+// Ganti 'mongodb+srv://...' dengan link dari MongoDB Atlas Anda
+// Kita gunakan process.env.MONGODB_URI agar aman (nanti diisi di Railway)
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin:rahasia123@cluster0.xxxxx.mongodb.net/discordbot?retryWrites=true&w=majority';
+
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ Terhubung ke MongoDB'))
+  .catch(err => console.error('❌ Gagal koneksi MongoDB:', err));
+
+// --- SKEMA DATABASE ---
+const TokenSchema = new mongoose.Schema({
+    token: String,
+    username: String,
+    createdAt: { type: Date, default: Date.now }
 });
 
-// --- API ENDPOINTS ---
-// Database sementara
-let configs = []; 
+const ConfigSchema = new mongoose.Schema({
+    name: String,
+    tokenId: String,
+    channel: String,
+    delay: Number,
+    status: { type: String, default: 'STOPPED' },
+    sentCount: { type: Number, default: 0 }
+});
 
-// Endpoint untuk membuat config baru
-app.post('/api/config', (req, res) => {
-    const { name, token, channelId, delay } = req.body;
-    const newConfig = { id: Date.now(), name, token, channelId, delay, status: 'STOPPED' };
-    configs.push(newConfig);
+const Token = mongoose.model('Token', TokenSchema);
+const Config = mongoose.model('Config', ConfigSchema);
+
+// --- API ENDPOINTS ---
+
+// 1. Token API
+app.get('/api/tokens', async (req, res) => {
+    const tokens = await Token.find();
+    res.json(tokens);
+});
+
+app.post('/api/tokens', async (req, res) => {
+    const { token } = req.body;
+    const newToken = new Token({
+        token: token,
+        username: `User_${Math.floor(Math.random()*1000)}`
+    });
+    await newToken.save();
+    res.json({ success: true, token: newToken });
+});
+
+app.delete('/api/tokens/:id', async (req, res) => {
+    await Token.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// 2. Config API
+app.get('/api/configs', async (req, res) => {
+    const configs = await Config.find();
+    res.json(configs);
+});
+
+app.post('/api/configs', async (req, res) => {
+    const { name, tokenId, channel, delay } = req.body;
+    const newConfig = new Config({ name, tokenId, channel, delay });
+    await newConfig.save();
     res.json({ success: true, config: newConfig });
 });
 
-// Endpoint untuk memulai autopost
-app.post('/api/start/:id', async (req, res) => {
-    const config = configs.find(c => c.id == req.params.id);
-    if (!config) return res.status(404).json({ error: 'Config not found' });
-
-    config.status = 'RUNNING';
+app.post('/api/configs/:id/toggle', async (req, res) => {
+    const config = await Config.findById(req.params.id);
+    if (!config) return res.status(404).json({ error: 'Not found' });
     
-    const sendDiscordMessage = async () => {
-        if (config.status !== 'RUNNING') return;
-        try {
-            const messageContent = "Ini pesan autopost dari bot!"; 
-            await axios.post(`https://discord.com/api/v9/channels/${config.channelId}/messages`, 
-                { content: messageContent },
-                { headers: { 'Authorization': config.token } }
-            );
-            console.log(`[SUCCESS] Pesan terkirim ke ${config.channelId}`);
-        } catch (error) {
-            console.error(`[FAILED] Gagal mengirim:`, error.response?.data || error.message);
-        }
-    };
+    config.status = config.status === 'RUNNING' ? 'STOPPED' : 'RUNNING';
+    await config.save();
+    res.json({ success: true, status: config.status });
+});
 
-    setInterval(sendDiscordMessage, config.delay * 1000);
-    res.json({ success: true, message: 'Autopost started' });
+app.delete('/api/configs/:id', async (req, res) => {
+    await Config.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// 3. Log API (Simulasi, kita simpan di memori saja sementara)
+let logs = [];
+app.get('/api/logs', (req, res) => res.json(logs));
+app.post('/api/logs', (req, res) => {
+    logs.unshift(req.body);
+    if(logs.length > 50) logs.pop();
+    res.json({ success: true });
 });
 
 // --- PORT RAILWAY ---
-// Railway memberikan Port secara otomatis lewat environment variable.
-// Jangan hardcode ke 3000, gunakan process.env.PORT
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Backend berjalan di port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server berjalan di port ${PORT}`));
