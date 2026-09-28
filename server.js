@@ -1,18 +1,31 @@
 const express = require('express');
 const axios = require('axios');
+const cors = require('cors');
+const path = require('path'); // Tambahan untuk mengatur path file
+
 const app = express();
+
+// Middleware
+app.use(cors());
 app.use(express.json());
 
-// Database sementara (Gunakan MongoDB/MySQL untuk production)
+// INI KUNCI UTAMANYA: Mengizinkan Express menampilkan file index.html
+app.use(express.static(__dirname));
+
+// Route utama untuk menampilkan index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// --- API ENDPOINTS ---
+// Database sementara
 let configs = []; 
 
 // Endpoint untuk membuat config baru
 app.post('/api/config', (req, res) => {
     const { name, token, channelId, delay } = req.body;
-    
     const newConfig = { id: Date.now(), name, token, channelId, delay, status: 'STOPPED' };
     configs.push(newConfig);
-    
     res.json({ success: true, config: newConfig });
 });
 
@@ -23,14 +36,10 @@ app.post('/api/start/:id', async (req, res) => {
 
     config.status = 'RUNNING';
     
-    // Fungsi mengirim pesan ke Discord
     const sendDiscordMessage = async () => {
         if (config.status !== 'RUNNING') return;
-        
         try {
-            // Ganti dengan pesan yang ingin dikirim
             const messageContent = "Ini pesan autopost dari bot!"; 
-            
             await axios.post(`https://discord.com/api/v9/channels/${config.channelId}/messages`, 
                 { content: messageContent },
                 { headers: { 'Authorization': config.token } }
@@ -41,10 +50,12 @@ app.post('/api/start/:id', async (req, res) => {
         }
     };
 
-    // Jalankan interval
     setInterval(sendDiscordMessage, config.delay * 1000);
-    
     res.json({ success: true, message: 'Autopost started' });
 });
 
-app.listen(3000, () => console.log('Backend berjalan di port 3000'));
+// --- PORT RAILWAY ---
+// Railway memberikan Port secara otomatis lewat environment variable.
+// Jangan hardcode ke 3000, gunakan process.env.PORT
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Backend berjalan di port ${PORT}`));
