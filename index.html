@@ -147,7 +147,38 @@
             renderTokens();
             renderConfigs();
             renderLogs();
-            switchTab('configs'); // Buka tab configs secara default
+
+
+        function toggleConfig(id) {
+
+            <script>
+        // --- API HELPER (Penghubung ke Backend) ---
+        async function fetchAPI(endpoint, method = 'GET', body = null) {
+            const options = { method, headers: { 'Content-Type': 'application/json' } };
+            if (body) options.body = JSON.stringify(body);
+            const res = await fetch(endpoint, options);
+            return res.json();
+        }
+
+        // --- STATE MANAGEMENT ---
+        let tokens = [];
+        let configs = [];
+        let logs = [];
+
+        // --- INIT & NAVIGATION ---
+        async function init() {
+            console.log("Aplikasi dimulai");
+            await loadData();
+            switchTab('configs');
+        }
+
+        async function loadData() {
+            tokens = await fetchAPI('/api/tokens') || [];
+            configs = await fetchAPI('/api/configs') || [];
+            logs = await fetchAPI('/api/logs') || [];
+            renderTokens();
+            renderConfigs();
+            renderLogs();
         }
 
         function switchTab(tabId) {
@@ -164,27 +195,21 @@
         }
 
         // --- TOKEN ---
-        function addToken() {
+        async function addToken() {
             const input = document.getElementById('input-token');
             const val = input.value.trim();
             if (!val) return alert('Token kosong!');
             
-            tokens.push({
-                id: Date.now(),
-                token: val,
-                username: `User_${Math.floor(Math.random()*1000)}`
-            });
-            storage.set('discord_tokens', tokens);
+            await fetchAPI('/api/tokens', 'POST', { token: val });
             input.value = '';
-            renderTokens();
-            alert('Token berhasil ditambahkan!');
+            await loadData();
+            alert('Token berhasil disimpan ke Database!');
         }
 
-        function deleteToken(id) {
+        async function deleteToken(id) {
             if (!confirm('Hapus token ini?')) return;
-            tokens = tokens.filter(t => t.id !== id);
-            storage.set('discord_tokens', tokens);
-            renderTokens();
+            await fetchAPI(`/api/tokens/${id}`, 'DELETE');
+            await loadData();
         }
 
         function renderTokens() {
@@ -200,7 +225,7 @@
                         <p class="font-bold text-gray-800">${t.username}</p>
                         <p class="text-xs text-gray-500">${t.token.substring(0,8)}...</p>
                     </div>
-                    <button onclick="deleteToken(${t.id})" class="text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>
+                    <button onclick="deleteToken('${t._id}')" class="text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>
                 </div>
             `).join('');
         }
@@ -208,7 +233,7 @@
         // --- CONFIG ---
         function openConfigModal() {
             if (tokens.length === 0) return alert('Tambahkan Token dulu di tab Tokens!');
-            document.getElementById('cfg-token').innerHTML = tokens.map(t => `<option value="${t.id}">${t.username}</option>`).join('');
+            document.getElementById('cfg-token').innerHTML = tokens.map(t => `<option value="${t._id}">${t.username}</option>`).join('');
             document.getElementById('config-modal').classList.remove('hidden');
         }
 
@@ -216,7 +241,7 @@
             document.getElementById('config-modal').classList.add('hidden');
         }
 
-        function createConfig() {
+        async function createConfig() {
             const name = document.getElementById('cfg-name').value;
             const tokenId = document.getElementById('cfg-token').value;
             const channel = document.getElementById('cfg-channel').value;
@@ -224,42 +249,20 @@
 
             if (!name || !channel) return alert('Isi nama dan Channel ID!');
 
-            configs.push({
-                id: Date.now(), name, tokenId: parseInt(tokenId), channel, delay,
-                status: 'STOPPED', sentCount: 0
-            });
-            storage.set('discord_configs', configs);
+            await fetchAPI('/api/configs', 'POST', { name, tokenId, channel, delay });
             closeConfigModal();
-            renderConfigs();
+            await loadData();
         }
 
-        function toggleConfig(id) {
-            const cfg = configs.find(c => c.id === id);
-            if (!cfg) return;
-
-            if (cfg.status === 'RUNNING') {
-                clearInterval(intervals[id]);
-                delete intervals[id];
-                cfg.status = 'STOPPED';
-            } else {
-                cfg.status = 'RUNNING';
-                // Simulasi kirim pesan (Di real backend, ini panggil API)
-                intervals[id] = setInterval(() => {
-                    cfg.sentCount++;
-                    renderConfigs();
-                    addLog(cfg.name, 'SUCCESS', `Pesan ke-${cfg.sentCount} terkirim.`);
-                }, cfg.delay * 1000);
-            }
-            storage.set('discord_configs', configs);
-            renderConfigs();
+        async function toggleConfig(id) {
+            await fetchAPI(`/api/configs/${id}/toggle`, 'POST');
+            await loadData();
         }
 
-        function deleteConfig(id) {
+        async function deleteConfig(id) {
             if (!confirm('Hapus config ini?')) return;
-            clearInterval(intervals[id]);
-            configs = configs.filter(c => c.id !== id);
-            storage.set('discord_configs', configs);
-            renderConfigs();
+            await fetchAPI(`/api/configs/${id}`, 'DELETE');
+            await loadData();
         }
 
         function renderConfigs() {
@@ -280,10 +283,10 @@
                             <p class="text-xs text-gray-500">Ch: ${c.channel} • Terkirim: ${c.sentCount}</p>
                         </div>
                         <div class="flex space-x-1">
-                            <button onclick="toggleConfig(${c.id})" class="p-2 rounded ${c.status==='RUNNING'?'bg-yellow-100 text-yellow-600':'bg-green-100 text-green-600'}">
+                            <button onclick="toggleConfig('${c._id}')" class="p-2 rounded ${c.status==='RUNNING'?'bg-yellow-100 text-yellow-600':'bg-green-100 text-green-600'}">
                                 <i class="fa-solid ${c.status==='RUNNING'?'fa-pause':'fa-play'}"></i>
                             </button>
-                            <button onclick="deleteConfig(${c.id})" class="p-2 rounded bg-red-100 text-red-600"><i class="fa-solid fa-trash"></i></button>
+                            <button onclick="deleteConfig('${c._id}')" class="p-2 rounded bg-red-100 text-red-600"><i class="fa-solid fa-trash"></i></button>
                         </div>
                     </div>
                 `;
@@ -291,16 +294,8 @@
         }
 
         // --- LOGS ---
-        function addLog(name, status, msg) {
-            logs.unshift({ time: new Date().toLocaleTimeString(), name, status, msg });
-            if (logs.length > 50) logs.pop();
-            storage.set('discord_logs', logs);
-            renderLogs();
-        }
-
         function clearLogs() {
             logs = [];
-            storage.set('discord_logs', logs);
             renderLogs();
         }
 
