@@ -15,9 +15,12 @@ if (!MONGODB_URI) {
     console.error("❌ MONGODB_URI belum diisi di Railway Variables!");
 }
 
-// Tambahkan opsi bufferCommands: false agar error muncul langsung jika DB terputus
+// Kita pindahkan resumeRunningConfigs ke dalam .then() agar berjalan SETELAH database terhubung
 mongoose.connect(MONGODB_URI, { bufferCommands: false })
-  .then(() => console.log('✅ Terhubung ke MongoDB'))
+  .then(async () => {
+      console.log('✅ Terhubung ke MongoDB');
+      await resumeRunningConfigs(); // <-- JALANKAN DI SINI
+  })
   .catch(err => console.error('❌ Gagal koneksi MongoDB:', err));
 
 // --- SKEMA DATABASE ---
@@ -37,8 +40,7 @@ const Config = mongoose.model('Config', ConfigSchema);
 // --- PENYIMPANAN INTERVAL ---
 const activeIntervals = {};
 
-// --- API ENDPOINTS (Dengan Try-Catch untuk Error Handling) ---
-
+// --- API ENDPOINTS ---
 app.get('/api/tokens', async (req, res) => {
     try {
         const tokens = await Token.find();
@@ -169,16 +171,20 @@ async function startAutopost(config) {
 
 // --- RESUME SAAT RESTART ---
 async function resumeRunningConfigs() {
-    const runningConfigs = await Config.find({ status: 'RUNNING' });
-    runningConfigs.forEach(config => {
-        console.log(`[RESUME] Melanjutkan autopost: ${config.name}`);
-        startAutopost(config);
-    });
+    try {
+        const runningConfigs = await Config.find({ status: 'RUNNING' });
+        runningConfigs.forEach(config => {
+            console.log(`[RESUME] Melanjutkan autopost: ${config.name}`);
+            startAutopost(config);
+        });
+    } catch (error) {
+        console.error("Error saat resume configs:", error.message);
+    }
 }
 
 // --- PORT ---
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', async () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server berjalan di port ${PORT}`);
-    await resumeRunningConfigs();
+    // Jangan panggil resumeRunningConfigs di sini, biarkan mongoose yang memanggilnya
 });
