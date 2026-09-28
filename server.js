@@ -22,8 +22,13 @@ mongoose.connect(MONGODB_URI)
 // --- SKEMA DATABASE ---
 const TokenSchema = new mongoose.Schema({ token: String, username: String });
 const ConfigSchema = new mongoose.Schema({
-    name: String, tokenId: String, channel: String, delay: Number,
-    status: { type: String, default: 'STOPPED' }, sentCount: { type: Number, default: 0 }
+    name: String, 
+    message: String, // <-- KOLOM PESAN DITAMBAHKAN DI SINI
+    tokenId: String, 
+    channel: String, 
+    delay: Number,
+    status: { type: String, default: 'STOPPED' }, 
+    sentCount: { type: Number, default: 0 }
 });
 const Token = mongoose.model('Token', TokenSchema);
 const Config = mongoose.model('Config', ConfigSchema);
@@ -92,7 +97,9 @@ async function startAutopost(config) {
 
     const sendMessage = async () => {
         try {
-            const messageContent = `Autopost dari config: ${config.name}`; 
+            // Menggunakan pesan kustom dari user, jika kosong pakai default
+            const messageContent = config.message || `Autopost dari config: ${config.name}`; 
+            
             await axios.post(`https://discord.com/api/v9/channels/${config.channel}/messages`, 
                 { content: messageContent },
                 { headers: { 'Authorization': tokenData.token } }
