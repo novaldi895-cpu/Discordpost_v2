@@ -15,13 +15,10 @@ if (!MONGODB_URI) {
     console.error("❌ MONGODB_URI belum diisi di Railway Variables!");
 }
 
-// Kita pindahkan resumeRunningConfigs ke dalam .then() agar berjalan SETELAH database terhubung
-mongoose.connect(MONGODB_URI, { bufferCommands: false })
-  .then(async () => {
-      console.log('✅ Terhubung ke MongoDB');
-      await resumeRunningConfigs(); // <-- JALANKAN DI SINI
-  })
-  .catch(err => console.error('❌ Gagal koneksi MongoDB:', err));
+// Koneksi dasar tanpa fitur resume otomatis
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ Terhubung ke MongoDB'))
+  .catch(err => console.error('❌ Gagal koneksi MongoDB:', err.message));
 
 // --- SKEMA DATABASE ---
 const TokenSchema = new mongoose.Schema({ token: String, username: String });
@@ -47,7 +44,7 @@ app.get('/api/tokens', async (req, res) => {
         res.json(tokens);
     } catch (error) {
         console.error("Error GET /api/tokens:", error.message);
-        res.status(500).json({ error: "Gagal mengambil data token dari database." });
+        res.status(500).json({ error: "Gagal mengambil data token." });
     }
 });
 
@@ -58,7 +55,7 @@ app.post('/api/tokens', async (req, res) => {
         res.json({ success: true, token: newToken });
     } catch (error) {
         console.error("Error POST /api/tokens:", error.message);
-        res.status(500).json({ error: "Gagal menyimpan token ke database." });
+        res.status(500).json({ error: "Gagal menyimpan token." });
     }
 });
 
@@ -67,7 +64,6 @@ app.delete('/api/tokens/:id', async (req, res) => {
         await Token.findByIdAndDelete(req.params.id);
         res.json({ success: true });
     } catch (error) {
-        console.error("Error DELETE /api/tokens:", error.message);
         res.status(500).json({ error: "Gagal menghapus token." });
     }
 });
@@ -78,7 +74,7 @@ app.get('/api/configs', async (req, res) => {
         res.json(configs);
     } catch (error) {
         console.error("Error GET /api/configs:", error.message);
-        res.status(500).json({ error: "Gagal mengambil data konfigurasi dari database." });
+        res.status(500).json({ error: "Gagal mengambil data konfigurasi." });
     }
 });
 
@@ -89,7 +85,7 @@ app.post('/api/configs', async (req, res) => {
         res.json({ success: true, config: newConfig });
     } catch (error) {
         console.error("Error POST /api/configs:", error.message);
-        res.status(500).json({ error: "Gagal menyimpan konfigurasi ke database." });
+        res.status(500).json({ error: "Gagal menyimpan konfigurasi." });
     }
 });
 
@@ -102,7 +98,6 @@ app.delete('/api/configs/:id', async (req, res) => {
         await Config.findByIdAndDelete(req.params.id);
         res.json({ success: true });
     } catch (error) {
-        console.error("Error DELETE /api/configs:", error.message);
         res.status(500).json({ error: "Gagal menghapus konfigurasi." });
     }
 });
@@ -125,8 +120,8 @@ app.post('/api/configs/:id/toggle', async (req, res) => {
         }
         res.json({ success: true, status: config.status });
     } catch (error) {
-        console.error("Error TOGGLE /api/configs:", error.message);
-        res.status(500).json({ error: "Gagal mengubah status konfigurasi." });
+        console.error("Error TOGGLE:", error.message);
+        res.status(500).json({ error: "Gagal mengubah status." });
     }
 });
 
@@ -169,22 +164,8 @@ async function startAutopost(config) {
     console.log(`[STARTED] Autopost untuk ${config.name} berjalan setiap ${config.delay} detik.`);
 }
 
-// --- RESUME SAAT RESTART ---
-async function resumeRunningConfigs() {
-    try {
-        const runningConfigs = await Config.find({ status: 'RUNNING' });
-        runningConfigs.forEach(config => {
-            console.log(`[RESUME] Melanjutkan autopost: ${config.name}`);
-            startAutopost(config);
-        });
-    } catch (error) {
-        console.error("Error saat resume configs:", error.message);
-    }
-}
-
 // --- PORT ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server berjalan di port ${PORT}`);
-    // Jangan panggil resumeRunningConfigs di sini, biarkan mongoose yang memanggilnya
 });
