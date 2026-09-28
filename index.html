@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Autopost Manager</title>
+    <title>Discord Autopost</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -124,48 +124,28 @@
     </div>
 
     <script>
-        // --- SAFE LOCALSTORAGE WRAPPER (Mencegah crash di browser HP) ---
-        const storage = {
-            get: (key) => {
-                try { return JSON.parse(localStorage.getItem(key)) || []; } 
-                catch (e) { console.warn("LocalStorage diblokir"); return []; }
-            },
-            set: (key, val) => {
-                try { localStorage.setItem(key, JSON.stringify(val)); } 
-                catch (e) { console.warn("Gagal menyimpan ke LocalStorage"); }
-            }
-        };
-
-        let tokens = storage.get('discord_tokens');
-        let configs = storage.get('discord_configs');
-        let logs = storage.get('discord_logs');
-        let intervals = {};
-
-        // --- INIT & NAVIGATION ---
-        function init() {
-            console.log("Aplikasi dimulai");
-            renderTokens();
-            renderConfigs();
-            renderLogs();
-
-
-        function toggleConfig(id) {
-
-            <script>
-        // --- API HELPER (Penghubung ke Backend) ---
-        async function fetchAPI(endpoint, method = 'GET', body = null) {
-            const options = { method, headers: { 'Content-Type': 'application/json' } };
-            if (body) options.body = JSON.stringify(body);
-            const res = await fetch(endpoint, options);
-            return res.json();
-        }
-
         // --- STATE MANAGEMENT ---
         let tokens = [];
         let configs = [];
         let logs = [];
+        let intervals = {};
 
-        // --- INIT & NAVIGATION ---
+        // --- API HELPER ---
+        async function fetchAPI(endpoint, method = 'GET', body = null) {
+            try {
+                const options = { method, headers: { 'Content-Type': 'application/json' } };
+                if (body) options.body = JSON.stringify(body);
+                const res = await fetch(endpoint, options);
+                if (!res.ok) throw new Error('Network response was not ok');
+                return await res.json();
+            } catch (error) {
+                console.error("API Error:", error);
+                alert("Gagal terhubung ke server. Pastikan backend berjalan.");
+                return null;
+            }
+        }
+
+        // --- INIT ---
         async function init() {
             console.log("Aplikasi dimulai");
             await loadData();
@@ -173,9 +153,15 @@
         }
 
         async function loadData() {
-            tokens = await fetchAPI('/api/tokens') || [];
-            configs = await fetchAPI('/api/configs') || [];
-            logs = await fetchAPI('/api/logs') || [];
+            const tokenData = await fetchAPI('/api/tokens');
+            if (tokenData) tokens = tokenData;
+
+            const configData = await fetchAPI('/api/configs');
+            if (configData) configs = configData;
+
+            const logData = await fetchAPI('/api/logs');
+            if (logData) logs = logData;
+
             renderTokens();
             renderConfigs();
             renderLogs();
@@ -203,7 +189,7 @@
             await fetchAPI('/api/tokens', 'POST', { token: val });
             input.value = '';
             await loadData();
-            alert('Token berhasil disimpan ke Database!');
+            alert('Token berhasil disimpan!');
         }
 
         async function deleteToken(id) {
@@ -294,11 +280,6 @@
         }
 
         // --- LOGS ---
-        function clearLogs() {
-            logs = [];
-            renderLogs();
-        }
-
         function renderLogs() {
             const list = document.getElementById('log-list');
             if (logs.length === 0) {
@@ -313,8 +294,12 @@
             `).join('');
         }
 
-        // Jalankan saat halaman selesai dimuat
+        function clearLogs() {
+            logs = [];
+            renderLogs();
+        }
+
         document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
-    </html>
+                    </html>
