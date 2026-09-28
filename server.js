@@ -15,7 +15,8 @@ if (!MONGODB_URI) {
     console.error("❌ MONGODB_URI belum diisi di Railway Variables!");
 }
 
-mongoose.connect(MONGODB_URI)
+// Tambahkan opsi bufferCommands: false agar error muncul langsung jika DB terputus
+mongoose.connect(MONGODB_URI, { bufferCommands: false })
   .then(() => console.log('✅ Terhubung ke MongoDB'))
   .catch(err => console.error('❌ Gagal koneksi MongoDB:', err));
 
@@ -23,7 +24,7 @@ mongoose.connect(MONGODB_URI)
 const TokenSchema = new mongoose.Schema({ token: String, username: String });
 const ConfigSchema = new mongoose.Schema({
     name: String, 
-    message: String, // <-- KOLOM PESAN DITAMBAHKAN DI SINI
+    message: String,
     tokenId: String, 
     channel: String, 
     delay: Number,
@@ -36,44 +37,95 @@ const Config = mongoose.model('Config', ConfigSchema);
 // --- PENYIMPANAN INTERVAL ---
 const activeIntervals = {};
 
-// --- API ENDPOINTS ---
-app.get('/api/tokens', async (req, res) => res.json(await Token.find()));
-app.post('/api/tokens', async (req, res) => {
-    const newToken = new Token({ token: req.body.token, username: `User_${Math.floor(Math.random()*1000)}` });
-    await newToken.save();
-    res.json({ success: true, token: newToken });
-});
-app.delete('/api/tokens/:id', async (req, res) => { await Token.findByIdAndDelete(req.params.id); res.json({ success: true }); });
+// --- API ENDPOINTS (Dengan Try-Catch untuk Error Handling) ---
 
-app.get('/api/configs', async (req, res) => res.json(await Config.find()));
-app.post('/api/configs', async (req, res) => {
-    const newConfig = new Config(req.body);
-    await newConfig.save();
-    res.json({ success: true, config: newConfig });
-});
-app.delete('/api/configs/:id', async (req, res) => {
-    if (activeIntervals[req.params.id]) { clearInterval(activeIntervals[req.params.id]); delete activeIntervals[req.params.id]; }
-    await Config.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-});
-
-// Endpoint Toggle (Play/Stop)
-app.post('/api/configs/:id/toggle', async (req, res) => {
-    const config = await Config.findById(req.params.id);
-    if (!config) return res.status(404).json({ error: 'Config not found' });
-    
-    config.status = config.status === 'RUNNING' ? 'STOPPED' : 'RUNNING';
-    await config.save();
-
-    if (config.status === 'RUNNING') {
-        startAutopost(config);
-    } else {
-        if (activeIntervals[config._id]) {
-            clearInterval(activeIntervals[config._id]);
-            delete activeIntervals[config._id];
-        }
+app.get('/api/tokens', async (req, res) => {
+    try {
+        const tokens = await Token.find();
+        res.json(tokens);
+    } catch (error) {
+        console.error("Error GET /api/tokens:", error.message);
+        res.status(500).json({ error: "Gagal mengambil data token dari database." });
     }
-    res.json({ success: true, status: config.status });
+});
+
+app.post('/api/tokens', async (req, res) => {
+    try {
+        const newToken = new Token({ token: req.body.token, username: `User_${Math.floor(Math.random()*1000)}` });
+        await newToken.save();
+        res.json({ success: true, token: newToken });
+    } catch (error) {
+        console.error("Error POST /api/tokens:", error.message);
+        res.status(500).json({ error: "Gagal menyimpan token ke database." });
+    }
+});
+
+app.delete('/api/tokens/:id', async (req, res) => {
+    try {
+        await Token.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Error DELETE /api/tokens:", error.message);
+        res.status(500).json({ error: "Gagal menghapus token." });
+    }
+});
+
+app.get('/api/configs', async (req, res) => {
+    try {
+        const configs = await Config.find();
+        res.json(configs);
+    } catch (error) {
+        console.error("Error GET /api/configs:", error.message);
+        res.status(500).json({ error: "Gagal mengambil data konfigurasi dari database." });
+    }
+});
+
+app.post('/api/configs', async (req, res) => {
+    try {
+        const newConfig = new Config(req.body);
+        await newConfig.save();
+        res.json({ success: true, config: newConfig });
+    } catch (error) {
+        console.error("Error POST /api/configs:", error.message);
+        res.status(500).json({ error: "Gagal menyimpan konfigurasi ke database." });
+    }
+});
+
+app.delete('/api/configs/:id', async (req, res) => {
+    try {
+        if (activeIntervals[req.params.id]) { 
+            clearInterval(activeIntervals[req.params.id]); 
+            delete activeIntervals[req.params.id]; 
+        }
+        await Config.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Error DELETE /api/configs:", error.message);
+        res.status(500).json({ error: "Gagal menghapus konfigurasi." });
+    }
+});
+
+app.post('/api/configs/:id/toggle', async (req, res) => {
+    try {
+        const config = await Config.findById(req.params.id);
+        if (!config) return res.status(404).json({ error: 'Config not found' });
+        
+        config.status = config.status === 'RUNNING' ? 'STOPPED' : 'RUNNING';
+        await config.save();
+
+        if (config.status === 'RUNNING') {
+            startAutopost(config);
+        } else {
+            if (activeIntervals[config._id]) {
+                clearInterval(activeIntervals[config._id]);
+                delete activeIntervals[config._id];
+            }
+        }
+        res.json({ success: true, status: config.status });
+    } catch (error) {
+        console.error("Error TOGGLE /api/configs:", error.message);
+        res.status(500).json({ error: "Gagal mengubah status konfigurasi." });
+    }
 });
 
 // Log API
@@ -97,9 +149,7 @@ async function startAutopost(config) {
 
     const sendMessage = async () => {
         try {
-            // Menggunakan pesan kustom dari user, jika kosong pakai default
             const messageContent = config.message || `Autopost dari config: ${config.name}`; 
-            
             await axios.post(`https://discord.com/api/v9/channels/${config.channel}/messages`, 
                 { content: messageContent },
                 { headers: { 'Authorization': tokenData.token } }
